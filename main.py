@@ -1,57 +1,65 @@
-import telebot
-import yt_dlp
+import logging
 import os
+import re
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import CommandStart, Command
+from aiogram.types import FSInputFile
+from yt_dlp import YoutubeDL
 
-# Bot tokeningiz
-TOKEN = "7466043263:AAEn6vrNVC30OG5l5eACpJrOkXKCaLz15uI"
-bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
+BOT_TOKEN = "7466043263:AAGgyHCARFM6tE83KN21EuVdB8KgxTWHlJE"
 
-# Linkni aniqlovchi oddiy funksiya
-def is_valid_url(text):
-    return any(domain in text for domain in ["youtube.com", "youtu.be", "tiktok.com", "instagram.com"])
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
 
-# Video yuklab olish funksiyasi
-def download_video(url):
-    try:
-        ydl_opts = {
-            'outtmpl': 'video.%(ext)s',
-            'format': 'mp4',
-            'quiet': True,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            return ydl.prepare_filename(info)
-    except Exception as e:
-        print(f"Download error: {e}")
-        return None
+logging.basicConfig(level=logging.INFO)
 
-# Start buyrug'i
-@bot.message_handler(commands=['start'])
-def start_handler(message):
-    bot.reply_to(message, "👋 Salom! Instagram, YouTube yoki TikTok link yuboring — men videoni yuklab beraman!")
+async def download_video(url):
+    ydl_opts = {
+        'outtmpl': 'video.%(ext)s',
+        'format': 'mp4',
+        'noplaylist': True,
+        'quiet': True,
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filename = ydl.prepare_filename(info)
+        return filename
 
-# Har qanday matn uchun handler
-@bot.message_handler(func=lambda message: True, content_types=['text'])
-def video_handler(message):
-    url = message.text.strip()
+@dp.message(CommandStart())
+async def start(message: types.Message):
+    await message.answer("👋 Salom! Menga YouTube, TikTok yoki Instagram havolasini yuboring — men sizga videoni yuboraman 🎬")
 
-    if is_valid_url(url):
-        msg = bot.reply_to(message, "📥 Yuklanmoqda... Iltimos kuting.")
-        filepath = download_video(url)
-        if filepath and os.path.exists(filepath):
-            try:
-                with open(filepath, 'rb') as video:
-                    bot.send_video(message.chat.id, video)
-            except Exception as e:
-                bot.reply_to(message, f"⚠️ Yuklab bo‘lmadi: {e}")
-            finally:
-                os.remove(filepath)
-        else:
-            bot.reply_to(message, "❌ Video yuklab bo‘lmadi. Linkni tekshiring.")
+@dp.message(Command("about"))
+async def about(message: types.Message):
+    await message.answer(
+        "ℹ️ <b>Bot haqida</b>:\n"
+        "Bu bot YouTube, TikTok va Instagram platformalaridan video yuklab berishga mo‘ljallangan.\n\n"
+        "👨‍💻 Dasturchi: Axmadjonov Salohiddin\n"
+        "📬 Muammo bo‘lsa bog‘laning: @pragromist",
+        parse_mode="HTML"
+    )
+
+@dp.message()
+async def handle_links(message: types.Message):
+    text = message.text.strip()
+
+    if re.match(r'https?://(www\.)?(youtube\.com|youtu\.be|tiktok\.com|instagram\.com)/[^\s]+', text):
+        await message.answer("⏳ Video yuklab olinmoqda...")
+
+        try:
+            filename = await download_video(text)
+            video = FSInputFile(filename)
+            await message.answer_video(video)
+            os.remove(filename)
+        except Exception as e:
+            logging.error(e)
+            await message.answer("❌ Xatolik yuz berdi. Linkni tekshirib ko‘ring.")
     else:
-        bot.reply_to(message, "❗ Iltimos faqat Instagram, TikTok yoki YouTube link yuboring.")
+        pass
 
-# Botni ishga tushirish
-if __name__ == 'main':
-    print("Bot ishga tushdi...")
-    bot.infinity_polling()
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
