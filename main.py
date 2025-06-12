@@ -46,6 +46,12 @@ async def about_handler(message: types.Message):
         parse_mode="HTML"
     )
 
+@dp.message(Command("help"))
+async def help_handler(message: types.Message):
+    await message.answer(
+        "Salom! agar bot siz tashlagan havola (url) gadi videoni yuklab bermayotgan bolsa, video mualifi(aftori) videoni yuklab olishga ruxsat bermagan bolishi mumkin, yoki bot hatto ishlayotgandir yana urinib ko'ring"
+    )
+
 @dp.message()
 async def handle_links(message: types.Message):
     text = message.text.strip()
