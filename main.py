@@ -2,12 +2,13 @@ import logging
 import os
 import re
 import asyncio
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart, Command
 from aiogram.types import FSInputFile
 from yt_dlp import YoutubeDL
 
-BOT_TOKEN = "7466043263:AAGgyHCARFM6tE83KN21EuVdB8KgxTWHlJE"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
