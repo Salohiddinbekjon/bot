@@ -8,15 +8,21 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import FSInputFile
 from yt_dlp import YoutubeDL
 
+from random import randint
+
+load_dotenv()
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-logging.basicConfig(level=logging.INFO)
+
+def on_start():
+    print("bot started....")
 
 async def download_video(url):
     ydl_opts = {
-        'outtmpl': 'video.%(ext)s',
+        'outtmpl': f'{randint(1, 1000)}.%(ext)s',
         'format': 'mp4',
         'noplaylist': True,
         'quiet': True,
@@ -55,11 +61,9 @@ async def handle_links(message: types.Message):
         except Exception as e:
             logging.error(f"Xatolik: {e}")
             await message.answer("❌ Video yuklab bo‘lmadi. Linkni tekshiring.")
-    else:
-        pass
 
 async def main():
+    dp.startup.register(on_start)
     await dp.start_polling(bot)
 
-if __name__ == "main":
-    asyncio.run(main())
+asyncio.run(main())
