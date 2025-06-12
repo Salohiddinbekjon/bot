@@ -42,7 +42,7 @@ async def about_handler(message: types.Message):
         "ℹ️ <b>Bot haqida</b>:\n"
         "Bu bot YouTube, TikTok va Instagram videolarini yuklab beradi.\n\n"
         "👨‍💻 Dasturchi: Axmadjonov Salohiddin"
-        "📬 Bog‘lanish: @pragromist",
+        "📬 Bog‘lanish: @salikh_658",
         parse_mode="HTML"
     )
 
