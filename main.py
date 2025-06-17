@@ -57,16 +57,21 @@ async def handle_links(message: types.Message):
     text = message.text.strip()
 
     if re.match(r'https?://(www\.)?(youtube\.com|youtu\.be|tiktok\.com|instagram\.com)/[^\s]+', text):
-        await message.answer("⏳ Yuklab olinmoqda...")
+        status_msg = await message.answer("⏳ Yuklab olinmoqda...")
 
         try:
             filename = await download_video(text)
             video = FSInputFile(filename)
             await message.answer_video(video)
+
+            await status_msg.delete()
+
             os.remove(filename)
+
         except Exception as e:
             logging.error(f"Xatolik: {e}")
-            await message.answer("❌ Video yuklab bo‘lmadi. Linkni tekshiring.")
+            await status_msg.edit_text("❌ Video yuklab bo‘lmadi. Linkni tekshiring.")
+
 
 async def main():
     dp.startup.register(on_start)
