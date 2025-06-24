@@ -12,22 +12,16 @@ from random import randint
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 def on_start():
     print("bot started....")
 
-
-
-
 user_video_urls = {}
-
 
 async def download_video_or_audio(url, format_type="video"):
     file_id = randint(1000, 9999)
-    
     if format_type == "audio":
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -56,14 +50,20 @@ async def download_video_or_audio(url, format_type="video"):
 
 @dp.message(CommandStart())
 async def start_handler(message: Message):
-    await message.answer("👋 Salom! Menga YouTube, TikTok yoki Instagram linkini yuboring — men sizga videoni jo‘nataman.")
+    user_name = message.from_user.first_name
+    await message.answer(
+        f"👋 Salom, {user_name}!\n\n"
+        "Menga YouTube, TikTok yoki Instagram linkini yuboring — men sizga videoni yoki audio faylini yuboraman.\n"
+        "⬇️ Video va audio formatda yuklab olish mumkin."
+    )
 
 @dp.message(Command("about"))
 async def about_handler(message: Message):
     await message.answer(
         "ℹ️ <b>Bot haqida</b>:\n"
-        "Bu bot YouTube, TikTok va Instagram videolarini yuklab beradi va uni Audio farmata ham yuklab olishingiz mumkin.\n\n"
-        "👨‍💻 Dasturchi: Axmadjonov Salohiddin"
+        "Bu bot YouTube, TikTok va Instagram videolarini yuklab beradi.\n"
+        "🎬 Video va 🎵 Audio formatda yuklab olishingiz mumkin.\n\n"
+        "👨‍💻 Dasturchi: Axmadjonov Salohiddin\n"
         "📬 Bog‘lanish: @salikh_658",
         parse_mode="HTML"
     )
@@ -71,7 +71,7 @@ async def about_handler(message: Message):
 @dp.message(Command("help"))
 async def help_handler(message: Message):
     await message.answer(
-        "Salom! agar bot siz tashlagan havola (url) gadi videoni yuklab bermayotgan bolsa, video mualifi(aftori) videoni yuklab olishga ruxsat bermagan bolishi mumkin, yoki bot hatto ishlayotgandir yana urinib ko'ring"
+        "❗ Agar yuklab bo‘lmasa, bu video egasi yuklab olishni cheklagandir yoki botda vaqtincha muammo bo‘lishi mumkin.\nIltimos, keyinroq yana urinib ko‘ring."
     )
 
 @dp.message()
@@ -93,6 +93,11 @@ async def process_download(call: types.CallbackQuery):
 
     user_id = call.from_user.id
     url = user_video_urls.get(user_id)
+
+    try:
+        await call.message.delete()
+    except Exception as e:
+        logging.warning(f"Xabarni o‘chirishda xatolik: {e}")
 
     if not url:
         await call.message.answer("❗ Link topilmadi. Iltimos, avval video link yuboring.")
@@ -116,7 +121,6 @@ async def process_download(call: types.CallbackQuery):
     except Exception as e:
         logging.error(f"Xatolik: {e}")
         await waiting.edit_text("❌ Yuklab olishda xatolik yuz berdi.")
-
 
 async def main():
     dp.startup.register(on_start)
