@@ -1,129 +1,142 @@
-import logging
 import os
-import re
 import asyncio
-from dotenv import load_dotenv
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart, Command
-from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from yt_dlp import YoutubeDL
 from random import randint
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import CommandStart, Command
+from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from yt_dlp import YoutubeDL
+import re
 
-load_dotenv()
-
+# --- Bot token ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=BOT_TOKEN,)
 dp = Dispatcher()
-
-def on_start():
-    print("bot started....")
-
 user_video_urls = {}
 
+# --- Video yuklab olish ---
 async def download_video_or_audio(url, format_type="video"):
     file_id = randint(1000, 9999)
-    if format_type == "audio":
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': f'{file_id}.%(ext)s',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'quiet': True,
-        }
-    else:
-        ydl_opts = {
-            'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
-            'merge_output_format': 'mp4',
-            'outtmpl': f'{file_id}.%(ext)s',
-            'quiet': True,
-        }
-
+    output_path = f"{file_id}.%(ext)s"
+    ydl_opts = {
+        'outtmpl': output_path,
+        'format': 'bestvideo+bestaudio/best' if format_type == "video" else 'bestaudio/best',
+        'merge_output_format': 'mp4' if format_type == "video" else None,
+        'quiet': True
+    }
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info)
-        if format_type == "audio":
-            filename = os.path.splitext(filename)[0] + ".mp3"
-        return filename
+        return filename, info
 
+# --- /start komandasi ---
 @dp.message(CommandStart())
-async def start_handler(message: Message):
-    user_name = message.from_user.first_name
-    await message.answer(
-        f"👋 Salom, {user_name}!\n\n"
-        "Menga YouTube, TikTok yoki Instagram linkini yuboring — men sizga videoni yoki audio faylini yuboraman.\n"
-        "⬇️ Video va audio formatda yuklab olish mumkin."
-    )
+async def start(message: types.Message):
+    await message.answer("👋 Salom! Menga YouTube, Instagram yoki TikTok linkini yuboring, men sizga video, audio va sarlavhasini chiqarib beraman.")
 
+# --- /about komandasi ---
 @dp.message(Command("about"))
-async def about_handler(message: Message):
+async def about(message: types.Message):
     await message.answer(
-        "ℹ️ <b>Bot haqida</b>:\n"
-        "Bu bot YouTube, TikTok va Instagram videolarini yuklab beradi.\n"
-        "🎬 Video va 🎵 Audio formatda yuklab olishingiz mumkin.\n\n"
-        "👨‍💻 Dasturchi: Axmadjonov Salohiddin\n"
-        "📬 Bog‘lanish: @salikh_658",
-        parse_mode="HTML"
+        "ℹ️ <b>Bot haqida:</b>\n\n"
+        "🎬 Video yuklash\n"
+        "🎵 Audio yuklash\n"
+        "📄 Sarlavhani chiqarish\n\n"
+        "👨‍💻 Dasturchi: Salohiddin\n"
+        "📬 Aloqa: @salikh_658"
     )
 
-@dp.message(Command("help"))
-async def help_handler(message: Message):
-    await message.answer(
-        "❗ Agar yuklab bo‘lmasa, bu video egasi yuklab olishni cheklagandir yoki botda vaqtincha muammo bo‘lishi mumkin.\nIltimos, keyinroq yana urinib ko‘ring."
-    )
-
+# --- Faqat linklarga javob berish ---
 @dp.message()
-async def handle_links(message: Message):
-    text = message.text.strip()
-    if re.match(r'https?://(www\.)?(youtube\.com|youtu\.be|tiktok\.com|instagram\.com)/[^\s]+', text):
-        user_video_urls[message.from_user.id] = text
+async def handle_link(message: types.Message):
+    text = message.text or ""
+    link_pattern = r"(https?://)?(www\.)?(youtube\.com|youtu\.be|instagram\.com|tiktok\.com)/[^\s]+"
 
-        buttons = [
-            [InlineKeyboardButton(text="🎬 Video yuklash", callback_data="download_video")],
-            [InlineKeyboardButton(text="🎵 Audio yuklash", callback_data="download_audio")]
-        ]
-        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-        await message.answer("📥 Yuklab olish turini tanlang:", reply_markup=keyboard)
-
-@dp.callback_query(F.data.in_(['download_video', 'download_audio']))
-async def process_download(call: types.CallbackQuery):
-    await call.answer()
-
-    user_id = call.from_user.id
-    url = user_video_urls.get(user_id)
-
-    try:
-        await call.message.delete()
-    except Exception as e:
-        logging.warning(f"Xabarni o‘chirishda xatolik: {e}")
-
-    if not url:
-        await call.message.answer("❗ Link topilmadi. Iltimos, avval video link yuboring.")
+    # Agar link bo'lmasa, e'tiborsiz qoldir
+    if not re.search(link_pattern, text):
         return
 
-    format_type = "video" if call.data == "download_video" else "audio"
-    waiting = await call.message.answer("⏳ Yuklab olinmoqda...")
+    url = text.strip()
+    # Ma'lumot olinmoqda xabari
+    loading_msg = await message.answer("📥 Video haqida ma'lumot olinmoqda...")
 
     try:
-        filename = await download_video_or_audio(url, format_type)
-        media = FSInputFile(filename)
+        with YoutubeDL({'quiet': True}) as ydl:
+            info = ydl.extract_info(url, download=False)
 
-        if format_type == "audio":
-            await call.message.answer_audio(media)
+        # Instagram uchun title to‘g‘irlash
+        title = info.get('title')
+        if not title or "video by" in title.lower():
+            desc = info.get('description', '')
+            if desc.strip():
+                title = desc.strip().split('\n')[0]
+            else:
+                title = info.get('uploader', 'Noma’lum video')
+
+        thumb = info.get('thumbnail', None)
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🎬 Video yuklash", callback_data="video")],
+            [InlineKeyboardButton(text="🎵 Audio yuklash", callback_data="audio")],
+            [InlineKeyboardButton(text="📄 Sarlavhani chiqarish", callback_data="title")],
+        ])
+
+        if thumb:
+            sent = await message.answer_photo(photo=thumb, caption=f"🎬 <b>{title}</b>", reply_markup=keyboard)
         else:
-            await call.message.answer_video(media)
+            sent = await message.answer(f"🎬 <b>{title}</b>", reply_markup=keyboard)
 
-        await waiting.delete()
-        os.remove(filename)
+        # Avvalgi xabarni o‘chirish
+        await loading_msg.delete()
+
+        user_video_urls[message.from_user.id] = {
+            "url": url,
+            "title": title,
+            "thumb_msg_id": sent.message_id
+        }
 
     except Exception as e:
-        logging.error(f"Xatolik: {e}")
-        await waiting.edit_text("❌ Yuklab olishda xatolik yuz berdi.")
+        await loading_msg.delete()
+        await message.answer(f"❌ Xatolik: {e}")
 
+# --- Inline tugmalar ---
+@dp.callback_query()
+async def handle_callback(call: CallbackQuery):
+    user_id = call.from_user.id
+    data = user_video_urls.get(user_id)
+    if not data:
+        await call.answer("❗ Avval video link yuboring.")
+        return
+
+    url = data["url"]
+    title = data["title"]
+    thumb_msg_id = data["thumb_msg_id"]
+
+    if call.data == "video":
+        await call.answer("📥 Video yuklab olinmoqda...")
+        filename, _ = await download_video_or_audio(url, "video")
+        await call.message.answer_video(FSInputFile(filename), caption=f"🎬 {title}")
+        os.remove(filename)
+
+    elif call.data == "audio":
+        await call.answer("📥 Audio yuklab olinmoqda...")
+        filename, _ = await download_video_or_audio(url, "audio")
+        await call.message.answer_audio(FSInputFile(filename), caption=f"🎵 {title}")
+        os.remove(filename)
+
+    elif call.data == "title":
+        await call.answer("📄 Sarlavha chiqarilmoqda...")
+        await call.message.answer(f"🎬 Video nomi:\n<b>{title}</b>")
+
+    # Rasm va tugmalarni o‘chirish
+    try:
+        await bot.delete_message(call.message.chat.id, thumb_msg_id)
+    except:
+        pass
+
+# --- Botni ishga tushirish ---
 async def main():
-    dp.startup.register(on_start)
+    print("✅ Bot ishga tushdi!")
     await dp.start_polling(bot)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
