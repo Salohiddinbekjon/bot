@@ -7,91 +7,98 @@ from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButto
 from yt_dlp import YoutubeDL
 import re
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 ADMIN_ID = 6296302270
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 user_video_urls = {}
 
-# --- Foydalanuvchini users.txt ga yozish ---
-def add_user_to_file(user_id, first_name):
-    try:
-        # Fayl yo'q bo'lsa yaratadi
-        if not os.path.exists("users.txt"):
-            with open("users.txt", "w", encoding="utf-8") as f:
-                pass
+USERS_FILE = "users.txt"
 
-        with open("users.txt", "r+", encoding="utf-8") as f:
+def save_user(user_id, first_name):
+    user_entry = f"{user_id} | {first_name}"
+    if not os.path.exists("users.txt"):
+        with open("users.txt", "w", encoding="utf-8") as f:
+            f.write(user_entry + "\n")
+    else:
+        with open("users.txt", "r", encoding="utf-8") as f:
             users = f.read().splitlines()
-            if str(user_id) not in [u.split(":")[0] for u in users]:
-                f.write(f"{user_id}:{first_name}\n")
-                print(f"✅ User yozildi: {user_id} - {first_name}")
-            else:
-                print(f"ℹ️ User allaqachon bor: {user_id}")
-    except Exception as e:
-        print(f"❌ users.txt yozishda xatolik: {e}")
+        if user_entry not in users:
+            with open("users.txt", "a", encoding="utf-8") as f:
+                f.write(user_entry + "\n")
 
-# --- Video yuklab olish ---
 async def download_video_or_audio(url, format_type="video"):
     file_id = randint(1000, 9999)
     output_path = f"{file_id}.%(ext)s"
     ydl_opts = {
         'outtmpl': output_path,
-        'format': 'bestvideo+bestaudio/best' if format_type == "video" else 'bestaudio/best',
-        'merge_output_format': 'mp4' if format_type == "video" else None,
-        'quiet': True
+        'cookies': 'cookies.txt',
+        'quiet': True,
+        'merge_output_format': 'mp4',
     }
+
+    if format_type == "video":
+        ydl_opts.update({
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
+            'postprocessors': [{
+                'key': 'FFmpegVideoConvertor',
+                'preferedformat': 'mp4'
+            }],
+        })
+    else:
+        ydl_opts.update({
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+        })
+
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info)
+        if format_type == "audio":
+            filename = os.path.splitext(filename)[0] + ".mp3"
         return filename, info
 
-# --- /start komandasi ---
 @dp.message(CommandStart())
 async def start(message: types.Message):
-    add_user_to_file(message.from_user.id, message.from_user.first_name)  # User yoziladi
-    await message.answer("👋 Salom! Menga YouTube, Instagram yoki TikTok linkini yuboring.")
+    save_user(message.from_user.id, message.from_user.first_name)
+    await message.answer("👋 Salom! Menga YouTube, Instagram yoki TikTok linkini yuboring, men sizga video, audio va sarlavhasini chiqarib beraman.")
 
-# --- /about komandasi ---
 @dp.message(Command("about"))
 async def about(message: types.Message):
     await message.answer(
-        "ℹ️ <b>Bot haqida:</b>\n\n"
+        "ℹ️ Bot haqida:\n\n"
         "🎬 Video yuklash\n"
         "🎵 Audio yuklash\n"
         "📄 Sarlavhani chiqarish\n\n"
         "👨‍💻 Dasturchi: Salohiddin\n"
-        "📬 Aloqa: @salikh_658",
-        parse_mode="HTML"
+        "📬 Aloqa: @salikh_658"
     )
 
-# --- /users komandasi (faqat admin uchun) ---
 @dp.message(Command("users"))
-async def users(message: types.Message):
+async def show_users(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ Sizda bu komandani ishlatish huquqi yo‘q.")
+        await message.answer("⛔ Siz bu komandani ishlata olmaysiz.")
         return
 
-    if not os.path.exists("users.txt"):
-        await message.answer("👥 Hech qanday foydalanuvchi topilmadi.")
+    if not os.path.exists(USERS_FILE):
+        await message.answer("👥 Hozircha hech qanday foydalanuvchi yo‘q.")
         return
 
-    with open("users.txt", "r", encoding="utf-8") as f:
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
         users = f.read().splitlines()
 
-    if not users:
-        await message.answer("👥 Foydalanuvchilar ro‘yxati bo‘sh.")
-        return
+    response = "👥 Foydalanuvchilar ro‘yxati:\n\n"
+    for i, user in enumerate(users, 1):
+        user_id, name = user.split("|")
+        response += f"{i}. {name.strip()} (ID: {user_id.strip()})\n"
 
-    response = f"👥 <b>Bot foydalanuvchilari:</b>\n\n"
-    for idx, user in enumerate(users, start=1):
-        user_id, first_name = user.split(":", 1)
-        response += f"{idx}. <b>{first_name}</b> (ID: <code>{user_id}</code>)\n"
+    response += f"\n🔢 Umumiy: {len(users)} ta foydalanuvchi."
+    await message.answer(response)
 
-    response += f"\n<b>Jami:</b> {len(users)} ta foydalanuvchi"
-    await message.answer(response, parse_mode="HTML")
-
-# --- Faqat linklarga javob berish va foydalanuvchini yozib qo‘yish ---
 @dp.message()
 async def handle_link(message: types.Message):
     text = message.text or ""
@@ -100,22 +107,17 @@ async def handle_link(message: types.Message):
     if not re.search(link_pattern, text):
         return
 
-    add_user_to_file(message.from_user.id, message.from_user.first_name)  # User yoziladi
-
     url = text.strip()
     loading_msg = await message.answer("📥 Video haqida ma'lumot olinmoqda...")
 
     try:
-        with YoutubeDL({'quiet': True}) as ydl:
+        with YoutubeDL({'quiet': True, 'cookies': 'cookies.txt'}) as ydl:
             info = ydl.extract_info(url, download=False)
 
         title = info.get('title')
         if not title or "video by" in title.lower():
-            desc = info.get('description', '')
-            if desc.strip():
-                title = desc.strip().split('\n')[0]
-            else:
-                title = info.get('uploader', 'Noma’lum video')
+            desc = info.get('description', 'Noma’lum video')
+            title = desc.strip().split('\n')[0]
 
         thumb = info.get('thumbnail', None)
 
@@ -142,7 +144,6 @@ async def handle_link(message: types.Message):
         await loading_msg.delete()
         await message.answer(f"❌ Xatolik: {e}")
 
-# --- Inline tugmalarni boshqarish ---
 @dp.callback_query()
 async def handle_callback(call: CallbackQuery):
     user_id = call.from_user.id
@@ -176,7 +177,6 @@ async def handle_callback(call: CallbackQuery):
     except:
         pass
 
-# --- Botni ishga tushirish ---
 async def main():
     print("✅ Bot ishga tushdi!")
     await dp.start_polling(bot)
