@@ -17,14 +17,14 @@ USERS_FILE = "users.txt"
 
 def save_user(user_id, first_name):
     user_entry = f"{user_id} | {first_name}"
-    if not os.path.exists("users.txt"):
-        with open("users.txt", "w", encoding="utf-8") as f:
+    if not os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
             f.write(user_entry + "\n")
     else:
-        with open("users.txt", "r", encoding="utf-8") as f:
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
             users = f.read().splitlines()
         if user_entry not in users:
-            with open("users.txt", "a", encoding="utf-8") as f:
+            with open(USERS_FILE, "a", encoding="utf-8") as f:
                 f.write(user_entry + "\n")
 
 async def download_video_or_audio(url, format_type="video"):
@@ -32,7 +32,7 @@ async def download_video_or_audio(url, format_type="video"):
     output_path = f"{file_id}.%(ext)s"
     ydl_opts = {
         'outtmpl': output_path,
-        'cookies': 'cookies.txt',
+        'cookies': 'cookies.txt',  # Instagram uchun cookie
         'quiet': True,
         'merge_output_format': 'mp4',
     }
@@ -92,11 +92,14 @@ async def show_users(message: types.Message):
         users = f.read().splitlines()
 
     response = "👥 Foydalanuvchilar ro‘yxati:\n\n"
+    count = 0
     for i, user in enumerate(users, 1):
-        user_id, name = user.split("|")
-        response += f"{i}. {name.strip()} (ID: {user_id.strip()})\n"
+        if "|" in user:
+            user_id, name = user.split("|", 1)
+            response += f"{i}. {name.strip()} (ID: {user_id.strip()})\n"
+            count += 1
 
-    response += f"\n🔢 Umumiy: {len(users)} ta foydalanuvchi."
+    response += f"\n🔢 Umumiy: {count} ta foydalanuvchi."
     await message.answer(response)
 
 @dp.message()
