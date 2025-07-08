@@ -13,20 +13,6 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 user_video_urls = {}
 
-USERS_FILE = "users.txt"
-
-def save_user(user_id, first_name):
-    user_entry = f"{user_id} | {first_name}"
-    if not os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "w", encoding="utf-8") as f:
-            f.write(user_entry + "\n")
-    else:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            users = f.read().splitlines()
-        if user_entry not in users:
-            with open(USERS_FILE, "a", encoding="utf-8") as f:
-                f.write(user_entry + "\n")
-
 async def download_video_or_audio(url, format_type="video"):
     file_id = randint(1000, 9999)
     output_path = f"{file_id}.%(ext)s"
@@ -64,7 +50,6 @@ async def download_video_or_audio(url, format_type="video"):
 
 @dp.message(CommandStart())
 async def start(message: types.Message):
-    save_user(message.from_user.id, message.from_user.first_name)
     await message.answer("👋 Salom! Menga YouTube, Instagram yoki TikTok linkini yuboring, men sizga video, audio va sarlavhasini chiqarib beraman.")
 
 @dp.message(Command("about"))
@@ -77,30 +62,6 @@ async def about(message: types.Message):
         "👨‍💻 Dasturchi: Salohiddin\n"
         "📬 Aloqa: @salikh_658"
     )
-
-@dp.message(Command("users"))
-async def show_users(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔ Siz bu komandani ishlata olmaysiz.")
-        return
-
-    if not os.path.exists(USERS_FILE):
-        await message.answer("👥 Hozircha hech qanday foydalanuvchi yo‘q.")
-        return
-
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
-        users = f.read().splitlines()
-
-    response = "👥 Foydalanuvchilar ro‘yxati:\n\n"
-    count = 0
-    for i, user in enumerate(users, 1):
-        if "|" in user:
-            user_id, name = user.split("|", 1)
-            response += f"{i}. {name.strip()} (ID: {user_id.strip()})\n"
-            count += 1
-
-    response += f"\n🔢 Umumiy: {count} ta foydalanuvchi."
-    await message.answer(response)
 
 @dp.message()
 async def handle_link(message: types.Message):
