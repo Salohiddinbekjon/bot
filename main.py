@@ -7,21 +7,37 @@ from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButto
 from yt_dlp import YoutubeDL
 import re
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+BOT_TOKEN =os.getenv("BOT_TOKEN")
 ADMIN_ID = 6296302270
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 user_video_urls = {}
 
+# 🔥 Cookie faylini URL ga qarab tanlash funksiyasi
+def get_cookie_file(url):
+    if "youtube.com" in url or "youtu.be" in url:
+        return "youtubeCookies.txt"
+    elif "instagram.com" in url:
+        return "cookies.txt"
+    else:
+        return None  # Boshqa saytlar uchun cookie kerak emas
+
 async def download_video_or_audio(url, format_type="video"):
     file_id = randint(1000, 9999)
     output_path = f"{file_id}.%(ext)s"
+
+    # Cookie faylni tanlash
+    cookie_file = get_cookie_file(url)
+
     ydl_opts = {
         'outtmpl': output_path,
-        'cookies': 'cookies.txt',  # Instagram uchun cookie
         'quiet': True,
         'merge_output_format': 'mp4',
     }
+
+    # Agar cookie kerak bo‘lsa, qo‘shamiz
+    if cookie_file:
+        ydl_opts['cookiefile'] = cookie_file
 
     if format_type == "video":
         ydl_opts.update({
@@ -75,7 +91,14 @@ async def handle_link(message: types.Message):
     loading_msg = await message.answer("📥 Video haqida ma'lumot olinmoqda...")
 
     try:
-        with YoutubeDL({'quiet': True, 'cookies': 'cookies.txt'}) as ydl:
+        # Cookie faylni tanlash
+        cookie_file = get_cookie_file(url)
+        ydl_opts = {'quiet': True}
+
+        if cookie_file:
+            ydl_opts['cookiefile'] = cookie_file
+
+        with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
         title = info.get('title')
